@@ -1,0 +1,45 @@
+#!/bin/bash
+set -e
+VHOSTDIR=/home/deployer/www
+VHOSTSKEL=/home/deployer/www/.skel/vhost-default
+
+echo -e "Specify the vhost domain name:"
+read VHOST
+
+if [ "$VHOST" = "" ] ; then
+	echo "Invalid domain!"
+	exit 1;
+fi
+
+echo "You typed: $VHOST"
+
+IP=`ifconfig | grep 'inet addr:'| grep -v ':127.*' | grep -v ':192.*' | grep -v ':10.*' | cut -d: -f2 | awk '{ print $1}'`;
+
+echo "Specify the vhost IP from the list of available Public IPs:"
+echo -e "$IP"
+
+read VHOSTIP
+
+if [ "$VHOSTIP" = "" ] ; then
+        echo "Invalid IP!"
+        exit 1;
+fi
+
+echo "You typed: $VHOSTIP"
+
+VHOSTPATH="$VHOSTDIR/$VHOST"
+sudo -u deployer cp -Rf "$VHOSTSKEL/" "$VHOSTPATH"
+sudo -u deployer ack-grep -l VHOSTDIR $VHOSTPATH/conf/* | xargs -t -n 1 sed -i -e "s@VHOSTDIR@$VHOSTDIR@g"
+sudo -u deployer ack-grep -l DOMAIN $VHOSTPATH/conf/* | xargs -t -n 1 sed -i -e "s@DOMAIN@$VHOST@g"
+sudo -u deployer ack-grep -l SERVERIP $VHOSTPATH/conf/* | xargs -t -n 1 sed -i -e "s@SERVERIP@$VHOSTIP@g"
+echo "Skeleton copied to \"$VHOSTPATH\""
+
+echo "Type \"Y\" if it is a Rails app:"
+read RAILSAPP
+
+if [[ $RAILSAPP =~ ^[Yy]$ ]]; then
+	sudo -u deployer sed -i 's/application/application\/current\/public/' $VHOSTPATH/conf/_common.conf
+fi
+
+echo "Reload your nginx when appropriate with the following command:"
+echo "\"sudo service nginx reload\""
